@@ -23,5 +23,8 @@ unsigned char get_error_level(void);
 //report an error
 void report_error(unsigned char level,unsigned short source,int err, unsigned short argument);
 
+//Print all errors in log
+void error_log_replay(void);
+
 #endif
   

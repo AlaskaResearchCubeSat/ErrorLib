@@ -13,5 +13,5 @@
   <configuration Name="Debug" build_debug_information="Yes" hidden="Yes"/>
   <configuration Name="MSP430 Release" inherited_configurations="MSP430;Release"/>
   <configuration Name="Release" build_debug_information="No" c_preprocessor_definitions="NDEBUG" hidden="Yes" optimize_block_locality="Yes" optimize_copy_propagation="Yes" optimize_cross_calling="Standard" optimize_cross_jumping="Yes" optimize_dead_code="Yes" optimize_jump_chaining="Yes" optimize_jump_threading="Yes" optimize_tail_merging="Yes"/>
-  <configuration Name="Common" Target="MSP430F2618" build_use_hardware_multiplier="16-Bit Multiplier" linker_memory_map_file="$(PackagesDir)/targets/msp430/MSP430F2618.xml" linker_section_placement_file="$(StudioDir)/targets/section_placement_info_abcd_iv32.xml" msp430_identify_string="MSP430F2618" msp430_insn_set="MSP430X"/>
+  <configuration Name="Common" Target="MSP430F2618" build_use_hardware_multiplier="16-Bit Multiplier" c_system_include_directories="$(StudioDir)/include;$(PackagesDir)/include;$(StudioDir)/ctl/include" link_use_multi_threaded_libraries="Yes" linker_memory_map_file="$(PackagesDir)/targets/msp430/MSP430F2618.xml" linker_section_placement_file="$(StudioDir)/targets/section_placement_info_abcd_iv32.xml" msp430_identify_string="MSP430F2618" msp430_insn_set="MSP430X"/>
 </solution>
