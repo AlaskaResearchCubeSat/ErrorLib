@@ -2,10 +2,6 @@
 #include <stdio.h>
 #include "Error.h"
 
-
-//arcbus function to decode errors
-char *err_decode_arcbus(char buf[150],unsigned short source,int err, unsigned short argument);
-
 //log level
 static char log_level=ERR_LEV_WARNING;
 
@@ -46,7 +42,7 @@ void report_error(unsigned char level,unsigned short source,int err, unsigned sh
       lev_str="Critical Error";
     }
     //print message
-    printf("%s (%i) : %s\r\n",lev_str,level,(source<ERR_SRC_SUBSYSTEM?err_decode_arcbus:err_decode)(buf,source,err,argument));
+    printf("%s (%i) : %s\r\n",lev_str,level,err_decode(buf,source,err,argument));
   }
 }
 
