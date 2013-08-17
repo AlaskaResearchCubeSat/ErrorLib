@@ -42,11 +42,8 @@ unsigned char get_error_level(void){
   return log_level;
 }    
 
-//put error data into array but don't do anything
-void record_error(unsigned char level,unsigned short source,int err, unsigned short argument){
-  //lock saved errors mutex
-  ctl_mutex_lock(&saved_err_mutex,CTL_TIMEOUT_NONE,0);
-  //set structures value
+void _record_error(unsigned char level,unsigned short source,int err, unsigned short argument){
+    //set structures value
   saved_errors[next_idx].level=level;
   saved_errors[next_idx].source=source;
   saved_errors[next_idx].err=err;
@@ -58,6 +55,13 @@ void record_error(unsigned char level,unsigned short source,int err, unsigned sh
   if(next_idx>=(sizeof(saved_errors)/sizeof(ERROR_DAT))){
     next_idx=0;
   }
+}
+
+//put error data into array but don't do anything
+void record_error(unsigned char level,unsigned short source,int err, unsigned short argument){
+  //lock saved errors mutex
+  ctl_mutex_lock(&saved_err_mutex,CTL_TIMEOUT_NONE,0);
+  _record_error(level,source,err,argument);
   //done, unlock saved errors mutex
   ctl_mutex_unlock(&saved_err_mutex);
 }
