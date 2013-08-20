@@ -20,7 +20,7 @@ CTL_MUTEX_t saved_err_mutex;
 char *err_decode_arcbus(char buf[150],unsigned short source,int err, unsigned short argument);
 
 //log level
-static char log_level=ERR_LEV_WARNING;
+static char log_level=0;
 
 
 //initialize error reporting system
