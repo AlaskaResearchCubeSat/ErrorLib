@@ -2,8 +2,13 @@
 #include <string.h>
 #include <ctl.h>
 #include "Error.h"
+#ifdef SD_CARD_OUTPUT
+  #include <SDlib.h>
+#endif
 
 #define SAVED_ERROR_MAGIC   0xA5
+
+void print_error(unsigned char level,unsigned short source,int err, unsigned short argument);
 
 typedef struct{
   unsigned char valid,level;
@@ -30,6 +35,40 @@ void error_init(void){
   ctl_mutex_init(&saved_err_mutex);
 }
 
+//start recording of errors
+void error_recording_start(void){
+  #ifdef SD_CARD_OUTPUT
+    int resp;
+  #endif
+  #ifdef PRINTF_OUTPUT 
+    //print errors that may have occurred during startup
+    int idx,start=next_idx;
+    idx=start;
+    do{
+      //decrement idx
+      idx--;
+      //wrap around
+      if(idx<0){
+        idx=(sizeof(saved_errors)/sizeof(ERROR_DAT))-1;
+      }
+      //check if error is valid
+      if(saved_errors[idx].valid!=SAVED_ERROR_MAGIC){
+        //error not valid, exit
+        break;
+      }
+      print_error(saved_errors[idx].level,saved_errors[idx].source,saved_errors[idx].err,saved_errors[idx].argument);
+    }while(idx!=start);
+  #endif
+  #ifdef SD_CARD_OUTPUT
+    resp=mmcInit_card();
+    if(resp==MMC_SUCCESS){
+      //TODO: look for prevous errors on SD card
+    }else{
+      //TODO: handle error
+    }
+  #endif
+}
+
 //set log level that triggers errors to be recorded
 unsigned char set_error_level(unsigned char lev){
   unsigned char tmp=log_level;
@@ -43,7 +82,7 @@ unsigned char get_error_level(void){
 }    
 
 void _record_error(unsigned char level,unsigned short source,int err, unsigned short argument){
-    //set structures value
+  //set structures value
   saved_errors[next_idx].level=level;
   saved_errors[next_idx].source=source;
   saved_errors[next_idx].err=err;
@@ -86,6 +125,11 @@ void print_error(unsigned char level,unsigned short source,int err, unsigned sho
   printf("%s (%i) : %s\r\n",lev_str,level,(source<ERR_SRC_SUBSYSTEM?err_decode_arcbus:err_decode)(buf,source,err,argument));
 }
 
+#ifdef SD_CARD_OUTPUT
+  void store_error(unsigned char level,unsigned short source,int err, unsigned short argument){
+  
+  }
+#endif
 
 //report error function : record an error if it's level is greater then the log level
 void report_error(unsigned char level,unsigned short source,int err, unsigned short argument){
@@ -93,10 +137,14 @@ void report_error(unsigned char level,unsigned short source,int err, unsigned sh
   if(level>=log_level){
     //if error level is above threshold then print and record the error
     record_error(level,source,err,argument);
-    print_error(level,source,err,argument);
+    #ifdef PRINTF_OUTPUT
+      print_error(level,source,err,argument);
+    #endif
+    #ifdef SD_CARD_OUTPUT
+      store_error(level,source,err,argument);
+    #endif
   }
 }
-
 
 //print all errors in the log starting with the most recent ones
 void error_log_replay(void){

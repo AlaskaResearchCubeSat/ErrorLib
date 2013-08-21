@@ -3,5 +3,7 @@
 *.hzs
 
 #build directories
-MSP430 Debug/
-MSP430 Release/
+MSP430 printf Debug/
+MSP430 printf Release/
+MSP430 SDcard Debug/
+MSP430 SDcard Release/
