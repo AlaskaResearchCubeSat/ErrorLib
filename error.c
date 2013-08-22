@@ -179,12 +179,6 @@ void print_error(unsigned char level,unsigned short source,int err, unsigned sho
   printf("%s (%i) : %s\r\n",lev_str,level,(source<ERR_SRC_SUBSYSTEM?err_decode_arcbus:err_decode)(buf,source,err,argument));
 }
 
-#ifdef SD_CARD_OUTPUT
-  void store_error(unsigned char level,unsigned short source,int err, unsigned short argument){
-  
-  }
-#endif
-
 //report error function : record an error if it's level is greater then the log level
 void report_error(unsigned char level,unsigned short source,int err, unsigned short argument){
   //check log level
