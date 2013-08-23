@@ -48,6 +48,8 @@ typedef struct{
   }ERROR_BLOCK;
   static ERROR_BLOCK errors;
 #endif
+
+//globals
 ERROR_BLOCK *err_dest;
 int next_idx;
 CTL_MUTEX_t saved_err_mutex;
@@ -120,7 +122,8 @@ void error_recording_start(void){
         buf=BUS_get_buffer(CTL_TIMEOUT_DELAY,100);
         //check if buffer acquired
         if(buf){
-          //TODO: look for previous errors on SD card
+          //look for previous errors on SD card
+          //TODO : add some way to find which error block is most recent
           for(addr=ERR_ADDR_START,found_addr=0;addr<ERR_ADDR_END;addr++){
             //read block
             resp=mmcReadBlock(addr,buf);
@@ -141,7 +144,10 @@ void error_recording_start(void){
         }
         //TODO: check for errors
         //set error address
-        current_block=found_addr;
+        current_block=found_addr+1;
+        if(current_block>ERR_ADDR_END){
+          current_block=ERR_ADDR_END;
+        }
         //done using buffer
         BUS_free_buffer();
         //write current block
@@ -227,7 +233,7 @@ void print_error(unsigned char level,unsigned short source,int err, unsigned sho
     lev_str="Critical Error";
   }
   //print message
-  printf("%s (%i) : %s\r\n",lev_str,level,(source<ERR_SRC_SUBSYSTEM?err_decode_arcbus:err_decode)(buf,source,err,argument));
+  printf("%-14s (%3i) : %s\r\n",lev_str,level,(source<ERR_SRC_SUBSYSTEM?err_decode_arcbus:err_decode)(buf,source,err,argument));
 }
 
 //report error function : record an error if it's level is greater then the log level
@@ -242,22 +248,89 @@ void report_error(unsigned char level,unsigned short source,int err, unsigned sh
   }
 }
 
+//clear all errors saved on the SD card
+int clear_saved_errors(void){
+  #ifdef SD_CARD_OUTPUT
+     return mmcErase(ERR_ADDR_START,ERR_ADDR_END);
+  #else
+    return 0;
+  #endif
+}
+
 //print all errors in the log starting with the most recent ones
 void error_log_replay(void){
-  int idx,start=next_idx;
-  idx=start;
-  do{
-    //decrement idx
-    idx--;
-    //wrap around
-    if(idx<0){
-      idx=NUM_ERRORS-1;
+  #ifdef SD_CARD_OUTPUT
+    SD_blolck_addr addr=current_block;
+    ERROR_BLOCK *blk;
+    unsigned char *buf;
+    int i,skip,resp;
+    resp=mmcLock();
+    //check if card was locked
+    if(resp==MMC_SUCCESS){
+      //get buffer 
+      buf=BUS_get_buffer(CTL_TIMEOUT_DELAY,100);
+      //check if buffer acquired
+      if(buf){
+        for(;;){
+          //read block
+          resp=mmcReadBlock(addr,buf);
+          //check for error
+          if(resp==MMC_SUCCESS){
+            //check for valid error block
+            blk=(ERROR_BLOCK*)buf;
+            //check signature values
+            if(blk->sig1==ERROR_BLOCK_SIGNATURE1 && blk->sig2==ERROR_BLOCK_SIGNATURE2 && blk->sig3==ERROR_BLOCK_SIGNATURE3){
+              //check CRC
+              if(blk->chk==crc16((unsigned char*)blk,sizeof(ERROR_BLOCK)-sizeof(blk->chk))){
+                for(i=NUM_ERRORS-1,skip=0;i>=0;i--){
+                  if(blk->saved_errors[i].valid==SAVED_ERROR_MAGIC){
+                    if(skip>0){
+                      printf("Skipping %i empty error slots\r\n",skip);
+                      skip=0;
+                    }
+                    print_error(blk->saved_errors[i].level,blk->saved_errors[i].source,blk->saved_errors[i].err,blk->saved_errors[i].argument);
+                  }else{
+                    skip++;
+                  }
+                }
+              }else{
+                  printf("Error : invalid block CRC\r\n");
+              }
+            }else{
+                printf("Error : invalid block header\r\n");
+            }
+          }else{
+             printf("Error : failed to read from SD card : %s\r\n",SD_error_str(resp));
+             return; 
+          }
+          if(addr==0){
+            break;
+          }
+          //decrement address
+          addr--;
+        }
+        //free buffer
+        BUS_free_buffer();
+      }
+      //unlock card
+      mmcUnlock();
     }
-    //check if error is valid
-    if(err_dest->saved_errors[idx].valid!=SAVED_ERROR_MAGIC){
-      //error not valid, exit
-      break;
-    }
-    print_error(err_dest->saved_errors[idx].level,err_dest->saved_errors[idx].source,err_dest->saved_errors[idx].err,err_dest->saved_errors[idx].argument);
-  }while(idx!=start);
+  #else
+    int idx,start=next_idx;
+    idx=start;
+    do{
+      //decrement idx
+      idx--;
+      //wrap around
+      if(idx<0){
+        idx=NUM_ERRORS-1;
+      }
+      //check if error is valid
+      if(err_dest->saved_errors[idx].valid!=SAVED_ERROR_MAGIC){
+        //error not valid, exit
+        break;
+      }
+      print_error(err_dest->saved_errors[idx].level,err_dest->saved_errors[idx].source,err_dest->saved_errors[idx].err,err_dest->saved_errors[idx].argument);
+    }while(idx!=start);
+  #endif  
 }
