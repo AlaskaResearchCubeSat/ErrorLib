@@ -2,8 +2,9 @@
 #include <string.h>
 #include <ctl.h>
 #include "Error.h"
-#include <crc.h>
 #ifdef SD_CARD_OUTPUT
+  #include <crc.h>
+  #include <ARCbus.h>
   #include <SDlib.h>
 #endif
 
@@ -71,11 +72,23 @@ void error_init(void){
     errors.sig3=ERROR_BLOCK_SIGNATURE3;
   #endif
 }
+  
+#ifdef SD_CARD_OUTPUT
+  static int write_error_block(SD_blolck_addr addr,ERROR_BLOCK *data){
+    //compute CRC
+    data->chk=crc16((unsigned char*)err_dest,sizeof(ERROR_BLOCK)-sizeof(data->chk));
+    //write block
+    return mmcWriteBlock(current_block,(unsigned char*)data);
+  }
+#endif
 
 //start recording of errors
 void error_recording_start(void){
   #ifdef SD_CARD_OUTPUT
     int resp;
+    SD_blolck_addr addr,found_addr;
+    ERROR_BLOCK *blk;
+    unsigned char *buf;
   #endif
   #ifdef PRINTF_OUTPUT 
     //print errors that may have occurred during startup
@@ -86,21 +99,61 @@ void error_recording_start(void){
       idx--;
       //wrap around
       if(idx<0){
-        idx=(sizeof(saved_errors)/sizeof(ERROR_DAT))-1;
+        idx=(NUM_ERRORS)-1;
       }
       //check if error is valid
-      if(saved_errors[idx].valid!=SAVED_ERROR_MAGIC){
+      if(err_dest->saved_errors[idx].valid!=SAVED_ERROR_MAGIC){
         //error not valid, exit
         break;
       }
-      print_error(saved_errors[idx].level,saved_errors[idx].source,saved_errors[idx].err,saved_errors[idx].argument);
+      print_error(err_dest->saved_errors[idx].level,err_dest->saved_errors[idx].source,err_dest->saved_errors[idx].err,err_dest->saved_errors[idx].argument);
     }while(idx!=start);
   #endif
   #ifdef SD_CARD_OUTPUT
     resp=mmcInit_card();
     if(resp==MMC_SUCCESS){
-      //TODO: look for prevous errors on SD card
+      //lock card so that we can search uninterrupted
+      resp=mmcLock();
+      //check if card was locked
+      if(resp==MMC_SUCCESS){
+        //get buffer 
+        buf=BUS_get_buffer(CTL_TIMEOUT_DELAY,100);
+        //check if buffer acquired
+        if(buf){
+          //TODO: look for previous errors on SD card
+          for(addr=ERR_ADDR_START,found_addr=0;addr<ERR_ADDR_END;addr++){
+            //read block
+            resp=mmcReadBlock(addr,buf);
+            //check for error
+            if(resp==MMC_SUCCESS){
+              //check for valid error block
+              blk=(ERROR_BLOCK*)buf;
+              //check signature values
+              if(blk->sig1==ERROR_BLOCK_SIGNATURE1 && blk->sig2==ERROR_BLOCK_SIGNATURE2 && blk->sig3==ERROR_BLOCK_SIGNATURE3){
+                //TODO: check CRC?
+                found_addr=addr;
+              }
+            }else{
+                //read failed
+                //TODO: handle error 
+            }
+          }
+        }
+        //TODO: check for errors
+        //set error address
+        current_block=found_addr;
+        //done using buffer
+        BUS_free_buffer();
+        //write current block
+        write_error_block(current_block,err_dest);
+        //done using card, unlock
+        mmcUnlock();
+      }else{
+        //could not lock SD card
+        //TODO: handle error
+      }
     }else{
+      //could not init card
       //TODO: handle error
     }
   #endif
@@ -143,10 +196,8 @@ void record_error(unsigned char level,unsigned short source,int err, unsigned sh
   ctl_mutex_lock(&saved_err_mutex,CTL_TIMEOUT_NONE,0);
   full=_record_error(level,source,err,argument);
   #ifdef SD_CARD_OUTPUT
-    //compute CRC
-    err_dest->chk=crc16((unsigned char*)err_dest,sizeof(ERROR_BLOCK)-sizeof(err_dest->chk));
-    //write block
-    mmcWriteBlock(current_block,(unsigned char*)err_dest);
+    //write block to SD card
+    write_error_block(current_block,err_dest);
     if(full==BLOCK_FULL){
       //increment address
       current_block++;
