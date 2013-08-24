@@ -38,7 +38,7 @@ typedef struct{
     unsigned short chk;
   }ERROR_BLOCK;
   static ERROR_BLOCK errors;
-  SD_blolck_addr current_block;
+  static SD_blolck_addr current_block;
 #else
   //number of errors in a block
   #define NUM_ERRORS      (64)
@@ -50,9 +50,9 @@ typedef struct{
 #endif
 
 //globals
-ERROR_BLOCK *err_dest;
+static ERROR_BLOCK *err_dest;
 int next_idx;
-CTL_MUTEX_t saved_err_mutex;
+static CTL_MUTEX_t saved_err_mutex;
 
 //arcbus function to decode errors
 char *err_decode_arcbus(char buf[150],unsigned short source,int err, unsigned short argument);
@@ -87,7 +87,7 @@ void error_init(void){
 //start recording of errors
 void error_recording_start(void){
   #ifdef SD_CARD_OUTPUT
-    int resp;
+    int resp,found;
     SD_blolck_addr addr,found_addr;
     ERROR_BLOCK *blk;
     unsigned char *buf;
@@ -124,7 +124,7 @@ void error_recording_start(void){
         if(buf){
           //look for previous errors on SD card
           //TODO : add some way to find which error block is most recent
-          for(addr=ERR_ADDR_START,found_addr=0;addr<ERR_ADDR_END;addr++){
+          for(addr=ERR_ADDR_START,found_addr=0,found=0;addr<ERR_ADDR_END;addr++){
             //read block
             resp=mmcReadBlock(addr,buf);
             //check for error
@@ -135,6 +135,7 @@ void error_recording_start(void){
               if(blk->sig1==ERROR_BLOCK_SIGNATURE1 && blk->sig2==ERROR_BLOCK_SIGNATURE2 && blk->sig3==ERROR_BLOCK_SIGNATURE3){
                 //TODO: check CRC?
                 found_addr=addr;
+                found=1;
               }
             }else{
                 //read failed
@@ -143,10 +144,17 @@ void error_recording_start(void){
           }
         }
         //TODO: check for errors
-        //set error address
-        current_block=found_addr+1;
-        if(current_block>ERR_ADDR_END){
-          current_block=ERR_ADDR_END;
+        //check if an address was found
+        if(found){
+          //set error address
+          current_block=found_addr+1;
+          //check for wraparound
+          if(current_block>ERR_ADDR_END){
+            current_block=ERR_ADDR_END;
+          }
+        }else{
+          //set address to first address
+          current_block=ERR_ADDR_START;
         }
         //done using buffer
         BUS_free_buffer();
@@ -250,11 +258,29 @@ void report_error(unsigned char level,unsigned short source,int err, unsigned sh
 
 //clear all errors saved on the SD card
 int clear_saved_errors(void){
+  int ret;
+  //lock saved errors mutex
+  ctl_mutex_lock(&saved_err_mutex,CTL_TIMEOUT_NONE,0);
   #ifdef SD_CARD_OUTPUT
-     return mmcErase(ERR_ADDR_START,ERR_ADDR_END);
+     ret=mmcErase(ERR_ADDR_START,ERR_ADDR_END);
   #else
-    return 0;
+    ret=0;
   #endif
+  if(!ret){
+    //clear errors saved in RAM
+    next_idx=0;
+    memset(err_dest,0,sizeof(ERROR_BLOCK));
+    #ifdef SD_CARD_OUTPUT
+      //reset current block
+      current_block=0;
+      //set error signatures
+      errors.sig1=ERROR_BLOCK_SIGNATURE1;
+      errors.sig2=ERROR_BLOCK_SIGNATURE2;
+      errors.sig3=ERROR_BLOCK_SIGNATURE3;
+    #endif
+  }
+  ctl_mutex_unlock(&saved_err_mutex);
+  return ret;
 }
 
 //print all errors in the log starting with the most recent ones
