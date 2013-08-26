@@ -365,9 +365,13 @@ void error_log_replay(void){
         }
         //free buffer
         BUS_free_buffer();
+      }else{
+        printf("Error : failed to get buffer\r\n");
       }
       //unlock card
       mmcUnlock();
+    }else{
+      printf("Error : Failed to lock SD card : %s\r\n",SD_error_str(resp));
     }
   #else
     //print errors stored in error buffer stored in RAM
