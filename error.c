@@ -39,6 +39,7 @@ typedef struct{
   }ERROR_BLOCK;
   static ERROR_BLOCK errors;
   static SD_blolck_addr current_block;
+  static running;
 #else
   //number of errors in a block
   #define NUM_ERRORS      (64)
@@ -72,6 +73,7 @@ void error_init(void){
     errors.sig1=ERROR_BLOCK_SIGNATURE1;
     errors.sig2=ERROR_BLOCK_SIGNATURE2;
     errors.sig3=ERROR_BLOCK_SIGNATURE3;
+    running=0;
   #endif
 }
   
@@ -160,6 +162,8 @@ void error_recording_start(void){
         BUS_free_buffer();
         //write current block
         write_error_block(current_block,err_dest);
+        //ready to store errors
+        running=1;
         //done using card, unlock
         mmcUnlock();
       }else{
@@ -210,14 +214,17 @@ void record_error(unsigned char level,unsigned short source,int err, unsigned sh
   ctl_mutex_lock(&saved_err_mutex,CTL_TIMEOUT_NONE,0);
   full=_record_error(level,source,err,argument);
   #ifdef SD_CARD_OUTPUT
-    //write block to SD card
-    write_error_block(current_block,err_dest);
-    if(full==BLOCK_FULL){
-      //increment address
-      current_block++;
-      //TODO: check for wraparound
-      //clear errors
-      memset(&err_dest->saved_errors,0,sizeof(err_dest->saved_errors));
+    //check if error code has been initialized
+    if(running){
+      //write block to SD card
+      write_error_block(current_block,err_dest);
+      if(full==BLOCK_FULL){
+        //increment address
+        current_block++;
+        //TODO: check for wraparound
+        //clear errors
+        memset(&err_dest->saved_errors,0,sizeof(err_dest->saved_errors));
+      }
     }
   #endif
   //done, unlock saved errors mutex
