@@ -152,7 +152,7 @@ void error_recording_start(void){
           current_block=found_addr+1;
           //check for wraparound
           if(current_block>ERR_ADDR_END){
-            current_block=ERR_ADDR_END;
+            current_block=ERR_ADDR_START;
           }
         }else{
           //set address to first address
