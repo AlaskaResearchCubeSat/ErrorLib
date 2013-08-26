@@ -37,8 +37,11 @@ typedef struct{
     ERROR_DAT saved_errors[NUM_ERRORS];
     unsigned short chk;
   }ERROR_BLOCK;
+  //place to store the error data
   static ERROR_BLOCK errors;
+  //SD card address to store data to
   static SD_blolck_addr current_block;
+  //used to derermine if library is ready to store data to the SD card
   static running;
 #else
   //number of errors in a block
@@ -47,12 +50,15 @@ typedef struct{
   typedef struct{
     ERROR_DAT saved_errors[NUM_ERRORS];
   }ERROR_BLOCK;
+  //place to store the error data
   static ERROR_BLOCK errors;
 #endif
 
-//globals
+//pointer to the current block of errors
 static ERROR_BLOCK *err_dest;
+//next index to store errors to
 int next_idx;
+//mutex for error storage
 static CTL_MUTEX_t saved_err_mutex;
 
 //arcbus function to decode errors
@@ -318,27 +324,39 @@ void error_log_replay(void){
             if(blk->sig1==ERROR_BLOCK_SIGNATURE1 && blk->sig2==ERROR_BLOCK_SIGNATURE2 && blk->sig3==ERROR_BLOCK_SIGNATURE3){
               //check CRC
               if(blk->chk==crc16((unsigned char*)blk,sizeof(ERROR_BLOCK)-sizeof(blk->chk))){
+                //loop through the block printing the most recent errors first
                 for(i=NUM_ERRORS-1,skip=0;i>=0;i--){
+                  //check if error is valid
                   if(blk->saved_errors[i].valid==SAVED_ERROR_MAGIC){
+                    //check if error slots have been skipped
                     if(skip>0){
+                      //print the number of skipped error slots
                       printf("Skipping %i empty error slots\r\n",skip);
+                      //reset skip count
                       skip=0;
                     }
+                    //print error from error slot
                     print_error(blk->saved_errors[i].level,blk->saved_errors[i].source,blk->saved_errors[i].err,blk->saved_errors[i].argument);
                   }else{
+                    //no valid error, skip
                     skip++;
                   }
                 }
               }else{
+                  //block is not valid, print error
                   printf("Error : invalid block CRC\r\n");
               }
             }else{
+                //block header is not valid
                 printf("Error : invalid block header\r\n");
             }
           }else{
+             //error reading from SD card
              printf("Error : failed to read from SD card : %s\r\n",SD_error_str(resp));
              return; 
           }
+           //check if there are more errors to display
+          //TODO: handle wraparound somehow
           if(addr==0){
             break;
           }
@@ -352,7 +370,11 @@ void error_log_replay(void){
       mmcUnlock();
     }
   #else
-    int idx,start=next_idx;
+    //print errors stored in error buffer stored in RAM
+    int idx,start;
+    //start at with the next index to print which gets decremented to start at the last error printed
+    start=next_idx;
+    //set index to start
     idx=start;
     do{
       //decrement idx
@@ -366,6 +388,7 @@ void error_log_replay(void){
         //error not valid, exit
         break;
       }
+      //print error
       print_error(err_dest->saved_errors[idx].level,err_dest->saved_errors[idx].source,err_dest->saved_errors[idx].err,err_dest->saved_errors[idx].argument);
     }while(idx!=start);
   #endif  
