@@ -221,7 +221,10 @@ void record_error(unsigned char level,unsigned short source,int err, unsigned sh
       if(full==BLOCK_FULL){
         //increment address
         current_block++;
-        //TODO: check for wraparound
+        //check for wraparound
+        if(current_block>ERR_ADDR_END){
+          current_block=ERR_ADDR_START;
+        }
         //clear errors
         memset(&err_dest->saved_errors,0,sizeof(err_dest->saved_errors));
       }
