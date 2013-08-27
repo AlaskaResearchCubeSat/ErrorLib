@@ -13,7 +13,6 @@
 //TODO: decide on good values to use (below values are quite arbitrary)
 #define ERROR_BLOCK_SIGNATURE1    0xA55A
 #define ERROR_BLOCK_SIGNATURE2    0xCB31
-#define ERROR_BLOCK_SIGNATURE3    0xE93A
 
 void print_error(unsigned char level,unsigned short source,int err, unsigned short argument);
 
@@ -33,7 +32,8 @@ typedef struct{
   #define NUM_ERRORS      (504/sizeof(ERROR_DAT))
   //A block of errors
   typedef struct{
-    unsigned short sig1,sig2,sig3;
+    unsigned short sig1,sig2;
+    unsigned short number;
     ERROR_DAT saved_errors[NUM_ERRORS];
     unsigned short chk;
   }ERROR_BLOCK;
@@ -78,7 +78,6 @@ void error_init(void){
     current_block=-1;
     errors.sig1=ERROR_BLOCK_SIGNATURE1;
     errors.sig2=ERROR_BLOCK_SIGNATURE2;
-    errors.sig3=ERROR_BLOCK_SIGNATURE3;
     running=0;
   #endif
 }
@@ -99,6 +98,7 @@ void error_recording_start(void){
     SD_blolck_addr addr,found_addr;
     ERROR_BLOCK *blk;
     unsigned char *buf;
+    unsigned short number;
   #endif
   #ifdef PRINTF_OUTPUT 
     //print errors that may have occurred during startup
@@ -132,7 +132,7 @@ void error_recording_start(void){
         if(buf){
           //look for previous errors on SD card
           //TODO : add some way to find which error block is most recent
-          for(addr=ERR_ADDR_START,found_addr=0,found=0;addr<ERR_ADDR_END;addr++){
+          for(addr=ERR_ADDR_START,found_addr=0,found=0,number=0;addr<ERR_ADDR_END;addr++){
             //read block
             resp=mmcReadBlock(addr,buf);
             //check for error
@@ -140,10 +140,14 @@ void error_recording_start(void){
               //check for valid error block
               blk=(ERROR_BLOCK*)buf;
               //check signature values
-              if(blk->sig1==ERROR_BLOCK_SIGNATURE1 && blk->sig2==ERROR_BLOCK_SIGNATURE2 && blk->sig3==ERROR_BLOCK_SIGNATURE3){
+              if(blk->sig1==ERROR_BLOCK_SIGNATURE1 && blk->sig2==ERROR_BLOCK_SIGNATURE2){
                 //TODO: check CRC?
-                found_addr=addr;
-                found=1;
+                //check block number is greater then found block
+                if(blk->number>=number){
+                  found_addr=addr;
+                  found=1;
+                  number=blk->number;
+                }
               }
             }else{
                 //read failed
@@ -160,9 +164,13 @@ void error_recording_start(void){
           if(current_block>ERR_ADDR_END){
             current_block=ERR_ADDR_START;
           }
+          //set number
+          err_dest->number=number+1;
         }else{
           //set address to first address
           current_block=ERR_ADDR_START;
+          //set number to zero
+          err_dest->number=0;
         }
         //done using buffer
         BUS_free_buffer();
@@ -233,6 +241,8 @@ void record_error(unsigned char level,unsigned short source,int err, unsigned sh
         }
         //clear errors
         memset(&err_dest->saved_errors,0,sizeof(err_dest->saved_errors));
+        //increment number
+        err_dest->number++;
       }
     }
   #endif
@@ -292,7 +302,7 @@ int clear_saved_errors(void){
       //set error signatures
       errors.sig1=ERROR_BLOCK_SIGNATURE1;
       errors.sig2=ERROR_BLOCK_SIGNATURE2;
-      errors.sig3=ERROR_BLOCK_SIGNATURE3;
+      errors.number=0;
     #endif
   }
   ctl_mutex_unlock(&saved_err_mutex);
@@ -321,9 +331,10 @@ void error_log_replay(void){
             //check for valid error block
             blk=(ERROR_BLOCK*)buf;
             //check signature values
-            if(blk->sig1==ERROR_BLOCK_SIGNATURE1 && blk->sig2==ERROR_BLOCK_SIGNATURE2 && blk->sig3==ERROR_BLOCK_SIGNATURE3){
+            if(blk->sig1==ERROR_BLOCK_SIGNATURE1 && blk->sig2==ERROR_BLOCK_SIGNATURE2){
               //check CRC
               if(blk->chk==crc16((unsigned char*)blk,sizeof(ERROR_BLOCK)-sizeof(blk->chk))){
+                printf("Found block #%u\r\n",blk->number);
                 //loop through the block printing the most recent errors first
                 for(i=NUM_ERRORS-1,skip=0;i>=0;i--){
                   //check if error is valid
