@@ -2,9 +2,9 @@
 #include <string.h>
 #include <ctl.h>
 #include "Error.h"
+#include <ARCbus.h>
 #ifdef SD_CARD_OUTPUT
   #include <crc.h>
-  #include <ARCbus.h>
   #include <SDlib.h>
 #endif
 
@@ -14,7 +14,7 @@
 #define ERROR_BLOCK_SIGNATURE1    0xA55A
 #define ERROR_BLOCK_SIGNATURE2    0xCB31
 
-void print_error(unsigned char level,unsigned short source,int err, unsigned short argument);
+void print_error(unsigned char level,unsigned short source,int err, unsigned short argument,ticker time);
 
 //returned by _record_error to tell if a block has been filled
 enum {BLOCK_NOT_FULL=0,BLOCK_FULL};
@@ -25,6 +25,7 @@ typedef struct{
   unsigned short source;
   int err;
   unsigned short argument;
+  ticker time;
 }ERROR_DAT;
 
 #ifdef SD_CARD_OUTPUT
@@ -116,7 +117,7 @@ void error_recording_start(void){
         //error not valid, exit
         break;
       }
-      print_error(err_dest->saved_errors[idx].level,err_dest->saved_errors[idx].source,err_dest->saved_errors[idx].err,err_dest->saved_errors[idx].argument);
+      print_error(err_dest->saved_errors[idx].level,err_dest->saved_errors[idx].source,err_dest->saved_errors[idx].err,err_dest->saved_errors[idx].argument,err_dest->saved_errors[idx].time);
     }while(idx!=start);
   #endif
   #ifdef SD_CARD_OUTPUT
@@ -204,12 +205,13 @@ unsigned char get_error_level(void){
 }    
 
 //record an error without locking, used for init code
-short _record_error(unsigned char level,unsigned short source,int err, unsigned short argument){
+short _record_error(unsigned char level,unsigned short source,int err, unsigned short argument,ticker time){
   //set structures value
   err_dest->saved_errors[next_idx].level=level;
   err_dest->saved_errors[next_idx].source=source;
   err_dest->saved_errors[next_idx].err=err;
   err_dest->saved_errors[next_idx].argument=argument;
+  err_dest->saved_errors[next_idx].time=time;
   err_dest->saved_errors[next_idx].valid=SAVED_ERROR_MAGIC;
   //increment index
   next_idx++;
@@ -222,11 +224,11 @@ short _record_error(unsigned char level,unsigned short source,int err, unsigned 
 }
 
 //put error data into array but don't do anything
-void record_error(unsigned char level,unsigned short source,int err, unsigned short argument){
+void record_error(unsigned char level,unsigned short source,int err, unsigned short argument,ticker time){
   short full;
   //lock saved errors mutex
   if(ctl_mutex_lock(&saved_err_mutex,CTL_TIMEOUT_NONE,0)){
-    full=_record_error(level,source,err,argument);
+    full=_record_error(level,source,err,argument,time);
     #ifdef SD_CARD_OUTPUT
       //check if error code has been initialized
       if(running){
@@ -252,7 +254,7 @@ void record_error(unsigned char level,unsigned short source,int err, unsigned sh
 }
 
 //print an error
-void print_error(unsigned char level,unsigned short source,int err, unsigned short argument){
+void print_error(unsigned char level,unsigned short source,int err, unsigned short argument,ticker time){
   char buf[150];
   const char *lev_str;
   //check error level and use appropriate string
@@ -268,17 +270,19 @@ void print_error(unsigned char level,unsigned short source,int err, unsigned sho
     lev_str="Critical Error";
   }
   //print message
-  printf("%-14s (%3i) : %s\r\n",lev_str,level,(source<ERR_SRC_SUBSYSTEM?err_decode_arcbus:err_decode)(buf,source,err,argument));
+  printf("%10lu:%-14s (%3i) : %s\r\n",time,lev_str,level,(source<ERR_SRC_SUBSYSTEM?err_decode_arcbus:err_decode)(buf,source,err,argument));
 }
 
 //report error function : record an error if it's level is greater then the log level
 void report_error(unsigned char level,unsigned short source,int err, unsigned short argument){
+  ticker time;
   //check log level
   if(level>=log_level){
+    time=get_ticker_time();
     //if error level is above threshold then print and record the error
-    record_error(level,source,err,argument);
+    record_error(level,source,err,argument,time);
     #ifdef PRINTF_OUTPUT
-      print_error(level,source,err,argument);
+      print_error(level,source,err,argument,time);
     #endif
   }
 }
@@ -313,10 +317,11 @@ int clear_saved_errors(void){
 //print all errors in the log starting with the most recent ones
 void error_log_replay(void){
   #ifdef SD_CARD_OUTPUT
-    SD_blolck_addr addr=current_block;
+    SD_blolck_addr start=current_block,addr=start;
     ERROR_BLOCK *blk;
+    unsigned long number=errors.number;
     unsigned char *buf;
-    int i,skip,resp;
+    int i,skip,resp,last;
     resp=mmcLock();
     //check if card was locked
     if(resp==MMC_SUCCESS){
@@ -335,7 +340,14 @@ void error_log_replay(void){
             if(blk->sig1==ERROR_BLOCK_SIGNATURE1 && blk->sig2==ERROR_BLOCK_SIGNATURE2){
               //check CRC
               if(blk->chk==crc16((unsigned char*)blk,sizeof(ERROR_BLOCK)-sizeof(blk->chk))){
-                printf("Found block #%u\r\n",blk->number);
+                if(number!=blk->number){
+                  //print message
+                  printf("Missing block(s) expected #%u got #%u\r\n",number,blk->number);
+                  //update number
+                  number=blk->number;
+                }/*else{
+                  printf("Block #%u\r\n",blk->number);
+                }*/
                 //loop through the block printing the most recent errors first
                 for(i=NUM_ERRORS-1,skip=0;i>=0;i--){
                   //check if error is valid
@@ -343,37 +355,57 @@ void error_log_replay(void){
                     //check if error slots have been skipped
                     if(skip>0){
                       //print the number of skipped error slots
-                      printf("Skipping %i empty error slots\r\n",skip);
+                      //printf("Skipping %i empty error slots\r\n",skip);
+                      printf("\r\n");
                       //reset skip count
                       skip=0;
                     }
                     //print error from error slot
-                    print_error(blk->saved_errors[i].level,blk->saved_errors[i].source,blk->saved_errors[i].err,blk->saved_errors[i].argument);
+                    print_error(blk->saved_errors[i].level,blk->saved_errors[i].source,blk->saved_errors[i].err,blk->saved_errors[i].argument,blk->saved_errors[i].time);
                   }else{
                     //no valid error, skip
                     skip++;
                   }
                 }
               }else{
-                  //block is not valid, print error
+                  //block CRC is not valid, print error
                   printf("Error : invalid block CRC\r\n");
               }
             }else{
+                //check if this block is expected to be the last
+                if(last){
+                  //exit loop
+                  break;
+                }
                 //block header is not valid
                 printf("Error : invalid block header\r\n");
             }
           }else{
              //error reading from SD card
              printf("Error : failed to read from SD card : %s\r\n",SD_error_str(resp));
-             return; 
+             //exit loop to prevent further errors
+             break; 
           }
-           //check if there are more errors to display
-          //TODO: handle wraparound somehow
-          if(addr==0){
+          //check if this should be the last block
+          if(number==0){
+             //set flag so code can exit silently next time
+             last=1;
+          }
+          //next block should have a lower number decrement
+          number--;
+          //check if address is at the beginning
+          if(addr==ERR_ADDR_START){
+            //set address to the end
+            addr=ERR_ADDR_END;
+          }else{
+            //decrement address
+            addr--;
+          }
+          //check if there are more errors to display
+          if(addr==start){
+            //replay complete, exit
             break;
           }
-          //decrement address
-          addr--;
         }
         //free buffer
         BUS_free_buffer();
@@ -405,7 +437,7 @@ void error_log_replay(void){
         break;
       }
       //print error
-      print_error(err_dest->saved_errors[idx].level,err_dest->saved_errors[idx].source,err_dest->saved_errors[idx].err,err_dest->saved_errors[idx].argument);
+      print_error(err_dest->saved_errors[idx].level,err_dest->saved_errors[idx].source,err_dest->saved_errors[idx].err,err_dest->saved_errors[idx].argument,err_dest->saved_errors[idx].time);
     }while(idx!=start);
   #endif  
 }
