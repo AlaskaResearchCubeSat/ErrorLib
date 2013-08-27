@@ -217,27 +217,28 @@ short _record_error(unsigned char level,unsigned short source,int err, unsigned 
 void record_error(unsigned char level,unsigned short source,int err, unsigned short argument){
   short full;
   //lock saved errors mutex
-  ctl_mutex_lock(&saved_err_mutex,CTL_TIMEOUT_NONE,0);
-  full=_record_error(level,source,err,argument);
-  #ifdef SD_CARD_OUTPUT
-    //check if error code has been initialized
-    if(running){
-      //write block to SD card
-      write_error_block(current_block,err_dest);
-      if(full==BLOCK_FULL){
-        //increment address
-        current_block++;
-        //check for wraparound
-        if(current_block>ERR_ADDR_END){
-          current_block=ERR_ADDR_START;
+  if(ctl_mutex_lock(&saved_err_mutex,CTL_TIMEOUT_NONE,0)){
+    full=_record_error(level,source,err,argument);
+    #ifdef SD_CARD_OUTPUT
+      //check if error code has been initialized
+      if(running){
+        //write block to SD card
+        write_error_block(current_block,err_dest);
+        if(full==BLOCK_FULL){
+          //increment address
+          current_block++;
+          //check for wraparound
+          if(current_block>ERR_ADDR_END){
+            current_block=ERR_ADDR_START;
+          }
+          //clear errors
+          memset(&err_dest->saved_errors,0,sizeof(err_dest->saved_errors));
         }
-        //clear errors
-        memset(&err_dest->saved_errors,0,sizeof(err_dest->saved_errors));
       }
-    }
-  #endif
-  //done, unlock saved errors mutex
-  ctl_mutex_unlock(&saved_err_mutex);
+    #endif
+    //done, unlock saved errors mutex
+    ctl_mutex_unlock(&saved_err_mutex);
+  }
 }
 
 //print an error
