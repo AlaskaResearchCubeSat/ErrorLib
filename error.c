@@ -21,10 +21,17 @@ enum {BLOCK_NOT_FULL=0,BLOCK_FULL};
 
 //error descriptor structure
 typedef struct{
-  unsigned char valid,level;
+  //"magic" number used to make sure it really is an error structure
+  unsigned char valid;
+  //error level
+  unsigned char level;
+  //error source
   unsigned short source;
+  //error code
   int err;
+  //more information about error (content depends on error code)
   unsigned short argument;
+  //Ticker time that the error happened
   ticker time;
 }ERROR_DAT;
 
@@ -33,9 +40,13 @@ typedef struct{
   #define NUM_ERRORS      (504/sizeof(ERROR_DAT))
   //A block of errors
   typedef struct{
+    //magic numbers to identify data from randomness
     unsigned short sig1,sig2;
+    //error block number used to figure out which block is the most recent
     unsigned short number;
+    //actual saved error data
     ERROR_DAT saved_errors[NUM_ERRORS];
+    //CRC to make sure that data is not corrupted
     unsigned short chk;
   }ERROR_BLOCK;
   //place to store the error data
@@ -49,6 +60,7 @@ typedef struct{
   #define NUM_ERRORS      (64)
   //A block of errors
   typedef struct{
+    //actual saved error data
     ERROR_DAT saved_errors[NUM_ERRORS];
   }ERROR_BLOCK;
   //place to store the error data
