@@ -326,8 +326,10 @@ int clear_saved_errors(void){
   return ret;
 }
 
-//print all errors in the log starting with the most recent ones
-void error_log_replay(void){
+//print errors in the log starting with the most recent ones
+//print only errors with a level greater than level up to a maximum of num errors 
+void error_log_replay(unsigned short num,unsigned char level){
+  unsigned short ecount=0;
   #ifdef SD_CARD_OUTPUT
     SD_blolck_addr start=current_block,addr=start;
     ERROR_BLOCK *blk;
@@ -372,8 +374,21 @@ void error_log_replay(void){
                       //reset skip count
                       skip=0;
                     }
-                    //print error from error slot
-                    print_error(blk->saved_errors[i].level,blk->saved_errors[i].source,blk->saved_errors[i].err,blk->saved_errors[i].argument,blk->saved_errors[i].time);
+                    //check error level
+                    if(blk->saved_errors[i].level>=level){
+                        //print error from error slot
+                        print_error(blk->saved_errors[i].level,blk->saved_errors[i].source,blk->saved_errors[i].err,blk->saved_errors[i].argument,blk->saved_errors[i].time);
+                        //check if we are counting
+                        if(num!=0){
+                            //increment count
+                            ecount++;
+                            //check if enough errors have been printed
+                            if(ecount>=num){
+                                //done!
+                                break;
+                            }
+                        }
+                    }
                   }else{
                     //no valid error, skip
                     skip++;
@@ -448,8 +463,21 @@ void error_log_replay(void){
         //error not valid, exit
         break;
       }
-      //print error
-      print_error(err_dest->saved_errors[idx].level,err_dest->saved_errors[idx].source,err_dest->saved_errors[idx].err,err_dest->saved_errors[idx].argument,err_dest->saved_errors[idx].time);
+      //check error level
+      if(err_dest->saved_errors[idx].level>=level){
+          //print error
+          print_error(err_dest->saved_errors[idx].level,err_dest->saved_errors[idx].source,err_dest->saved_errors[idx].err,err_dest->saved_errors[idx].argument,err_dest->saved_errors[idx].time);
+          //check if we are counting
+          if(num!=0){
+              //increment count
+              ecount++;
+              //check if enough errors have been printed
+              if(ecount>=num){
+                  //done!
+                  break;
+              }
+          }
+      }
     }while(idx!=start);
   #endif  
 }

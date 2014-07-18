@@ -30,7 +30,7 @@ unsigned char get_error_level(void);
 void report_error(unsigned char level,unsigned short source,int err, unsigned short argument);
 
 //Print all errors in log
-void error_log_replay(void);
+void error_log_replay(unsigned short num,unsigned char level);
 
 //clear all errors from the SD card (if used)
 int clear_saved_errors(void);
