@@ -136,7 +136,7 @@ void error_recording_start(void){
     resp=mmcInit_card();
     if(resp==MMC_SUCCESS){
       //lock card so that we can search uninterrupted
-      resp=mmcLock();
+      resp=mmcLock(CTL_TIMEOUT_DELAY,2048);
       //check if card was locked
       if(resp==MMC_SUCCESS){
         //get buffer 
@@ -336,7 +336,7 @@ void error_log_replay(unsigned short num,unsigned char level){
     unsigned long number=errors.number;
     unsigned char *buf;
     int i,skip,resp,last;
-    resp=mmcLock();
+    resp=mmcLock(CTL_TIMEOUT_DELAY,10);
     //check if card was locked
     if(resp==MMC_SUCCESS){
       //get buffer 
