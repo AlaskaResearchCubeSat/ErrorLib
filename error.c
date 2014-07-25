@@ -394,6 +394,11 @@ void error_log_replay(unsigned short num,unsigned char level){
                     skip++;
                   }
                 }
+                //check if enough errors have been printed
+                if(num!=0 && ecount>=num){
+                    //done!
+                    break;
+                }
               }else{
                   //block CRC is not valid, print error
                   printf("Error : invalid block CRC\r\n");
