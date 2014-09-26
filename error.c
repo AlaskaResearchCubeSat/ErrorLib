@@ -309,7 +309,6 @@ int clear_saved_errors(void){
   #else
     ret=0;
   #endif
-  if(!ret){
     //clear errors saved in RAM
     next_idx=0;
     memset(err_dest,0,sizeof(ERROR_BLOCK));
@@ -321,7 +320,6 @@ int clear_saved_errors(void){
       errors.sig2=ERROR_BLOCK_SIGNATURE2;
       errors.number=0;
     #endif
-  }
   ctl_mutex_unlock(&saved_err_mutex);
   return ret;
 }
