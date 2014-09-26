@@ -447,7 +447,32 @@ void error_log_replay(unsigned short num,unsigned char level){
       //unlock card
       mmcUnlock();
     }else{
-      printf("Error : Failed to lock SD card : %s\r\n",SD_error_str(resp));
+      printf("Error : Failed to lock SD card : %s\r\nPrinting Errors from RAM\r\n\r\n",SD_error_str(resp));
+      if(next_idx==0){
+         printf("No errors to display\r\n");
+      }else{
+            //print errors from buffer printing the most recent errors first
+            for(i=next_idx-1,skip=0;i>=0;i--){
+              //check if error is valid
+              if(errors.saved_errors[i].valid==SAVED_ERROR_MAGIC){
+                //check error level
+                if(errors.saved_errors[i].level>=level){
+                    //print error from error slot
+                    print_error(errors.saved_errors[i].level,errors.saved_errors[i].source,errors.saved_errors[i].err,errors.saved_errors[i].argument,errors.saved_errors[i].time);
+                    //check if we are counting
+                    if(num!=0){
+                        //increment count
+                        ecount++;
+                        //check if enough errors have been printed
+                        if(ecount>=num){
+                            //done!
+                            break;
+                        }
+                    }
+                }
+              }
+            }
+      }
     }
   #else
     //print errors stored in error buffer stored in RAM
