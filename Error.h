@@ -35,5 +35,8 @@ void error_log_replay(unsigned short num,unsigned char level);
 //clear all errors from the SD card (if used)
 int clear_saved_errors(void);
 
+//read errors into a buffer
+void error_log_mem_replay(unsigned char *dest,unsigned short size,unsigned char level,unsigned char *buf);
+
 #endif
   

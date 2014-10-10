@@ -323,6 +323,141 @@ int clear_saved_errors(void){
   ctl_mutex_unlock(&saved_err_mutex);
   return ret;
 }
+  
+void error_log_mem_replay(unsigned char *dest,unsigned short size,unsigned char level,unsigned char *buf){
+  //place to write number of errors to
+  unsigned short *num=(unsigned short*)dest;
+  int i,skip;
+  #ifdef SD_CARD_OUTPUT
+    SD_blolck_addr start=current_block,addr=start;
+    ERROR_BLOCK *blk;
+    unsigned long number=errors.number;
+    int resp,last;
+  #endif
+  ERROR_DAT *_dest=(ERROR_DAT*)(dest+2);
+  //set num to zero
+  *num=0;
+  //subtract the size of num from size
+  size-=sizeof(*num);
+  #ifdef SD_CARD_OUTPUT
+    resp=mmcLock(CTL_TIMEOUT_DELAY,10);
+    //check if card was locked
+    if(resp==MMC_SUCCESS){
+        for(;;){
+          //read block
+          resp=mmcReadBlock(addr,buf);
+          //check for error
+          if(resp==MMC_SUCCESS){
+            //check for valid error block
+            blk=(ERROR_BLOCK*)buf;
+            //check signature values
+            if(blk->sig1==ERROR_BLOCK_SIGNATURE1 && blk->sig2==ERROR_BLOCK_SIGNATURE2){
+              //check CRC
+              if(blk->chk==crc16((unsigned char*)blk,sizeof(ERROR_BLOCK)-sizeof(blk->chk))){
+                if(number!=blk->number){
+                  //update number
+                  number=blk->number;
+                }
+                //loop through the block printing the most recent errors first
+                for(i=NUM_ERRORS-1,skip=0;i>=0;i--){
+                  //check if error is valid
+                  if(blk->saved_errors[i].valid==SAVED_ERROR_MAGIC){
+                    //check if error slots have been skipped
+                    if(skip>0){
+                      //TODO: add gap error?
+                      //reset skip count
+                      skip=0;
+                    }
+                    //check error level
+                    if(blk->saved_errors[i].level>=level){
+                        //copy error
+                        memcpy(_dest,&blk->saved_errors[i],sizeof(ERROR_DAT));
+                        //increment count
+                        *num++;
+                        size-=sizeof(ERROR_DAT);
+                        //check if there is room for more errors
+                        if(size<sizeof(ERROR_DAT)){
+                            //done!
+                            break;
+                        }
+                    }
+                  }else{
+                    //no valid error, skip
+                    skip++;
+                  }
+                }
+                //check if dest is full
+                if(size<sizeof(ERROR_DAT)){
+                    break;
+                }
+              }else{
+                  //block CRC is not valid TODO: do something
+              }
+            }else{
+                //check if this block is expected to be the last
+                if(last){
+                  //exit loop
+                  break;
+                }
+                //TODO: block header is not valid
+            }
+          }else{
+             //error reading from SD card
+             //TODO: return error code?
+             //exit loop to prevent further errors
+             break; 
+          }
+          //check if this should be the last block
+          if(number==0){
+             //set flag so code can exit silently next time
+             last=1;
+          }
+          //next block should have a lower number decrement
+          number--;
+          //check if address is at the beginning
+          if(addr==ERR_ADDR_START){
+            //set address to the end
+            addr=ERR_ADDR_END;
+          }else{
+            //decrement address
+            addr--;
+          }
+          //check if there are more errors to display
+          if(addr==start){
+            //replay complete, exit
+            break;
+          }
+        }
+      //unlock card
+      mmcUnlock();
+    }else{
+      //TODO: give error for SD card fail?
+  #endif
+      if(next_idx!=0)
+            //print errors from buffer printing the most recent errors first
+            for(i=next_idx-1,skip=0;i>=0;i--){
+              //check if error is valid
+              if(errors.saved_errors[i].valid==SAVED_ERROR_MAGIC){
+                //check error level
+                if(errors.saved_errors[i].level>=level){
+                    //copy error
+                    memcpy(_dest,&errors.saved_errors[i],sizeof(ERROR_DAT));
+                    //increment count
+                    *num++;
+                    size-=sizeof(ERROR_DAT);
+                    //check if there is room for more errors
+                    if(size<sizeof(ERROR_DAT)){
+                        //done!
+                        break;
+                    }
+                }
+              }
+            }
+
+  #ifdef SD_CARD_OUTPUT
+      }
+  #endif
+}      
 
 //print errors in the log starting with the most recent ones
 //print only errors with a level greater than level up to a maximum of num errors 
