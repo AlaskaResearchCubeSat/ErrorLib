@@ -3,6 +3,7 @@
 #include <ctl.h>
 #include "Error.h"
 #include <ARCbus.h>
+#include <commandLib.h>
 #ifdef SD_CARD_OUTPUT
   #include <crc.h>
   #include <SDlib.h>
@@ -634,3 +635,34 @@ void error_log_replay(unsigned short num,unsigned char level){
     }while(idx!=start);
   #endif  
 }
+
+void print_spi_err(const unsigned char *dat,unsigned short len){
+    const char *name;
+    unsigned short num;
+    int i;
+    char buf[150];
+    const ERROR_DAT *data;
+    //check if it is a SPI error data block
+    if(dat[1]!=SPI_ERROR_DAT){
+        //print error and return
+        printf("Error : data is not SPI error block\r\n");
+        return;
+    }
+    //get sender address name
+    name=I2C_addr_revlookup(dat[0],busAddrSym);
+    if(name!=NULL){
+        printf("Printing errors from %s (0x%02X)\r\n",name,dat[0]);
+    }else{
+        printf("Printing errors from address 0x%02X\r\n",i);
+    }
+    num=*(unsigned short*)(dat+2);
+    for(i=0,data=(const ERROR_DAT*)(dat+4);i<num;i++){
+        if(data[i].valid!=SAVED_ERROR_MAGIC){
+            printf("Invalid error\r\n");
+            continue;
+        }
+        //print message
+        printf("%10lu:%-14s (%3i) : %s\r\n",data[i].time,ERR_lev_str(data[i].level),data[i].level,err_decode_arcbus(buf,data[i].source,data[i].err,data[i].argument));
+    }
+}
+

@@ -55,5 +55,8 @@ int clear_saved_errors(void);
 //read errors into a buffer
 void error_log_mem_replay(unsigned char *dest,unsigned short size,unsigned char level,unsigned char *buf);
 
+//print errors received over SPI
+void print_spi_err(const unsigned char *dat,unsigned short len);
+
 #endif
   
