@@ -1,6 +1,7 @@
 #ifndef __ERROR_H
 #define __ERROR_H
 #include <stdio.h>
+#include <ARCbus.h>
 
 //System Error sources, Any source greater then ERR_SRC_SUBSYSTEM is available for subsystem use
 enum{ERR_SRC_ARCBUS=0,ERR_SRC_SUBSYSTEM=50};
@@ -10,6 +11,22 @@ enum{ERR_ADDR_START=0,ERR_ADDR_END=64};
 
 //Error severity classes
 enum{ERR_LEV_DEBUG=0,ERR_LEV_INFO=30,ERR_LEV_WARNING=60,ERR_LEV_ERROR=90,ERR_LEV_CRITICAL=120};
+
+//error descriptor structure
+typedef struct{
+  //"magic" number used to make sure it really is an error structure
+  unsigned char valid;
+  //error level
+  unsigned char level;
+  //error source
+  unsigned short source;
+  //error code
+  int err;
+  //more information about error (content depends on error code)
+  unsigned short argument;
+  //Ticker time that the error happened
+  ticker time;
+}ERROR_DAT;
 
 //setup for error reporting
 void error_init(void);

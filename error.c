@@ -19,21 +19,6 @@ void print_error(unsigned char level,unsigned short source,int err, unsigned sho
 //returned by _record_error to tell if a block has been filled
 enum {BLOCK_NOT_FULL=0,BLOCK_FULL};
 
-//error descriptor structure
-typedef struct{
-  //"magic" number used to make sure it really is an error structure
-  unsigned char valid;
-  //error level
-  unsigned char level;
-  //error source
-  unsigned short source;
-  //error code
-  int err;
-  //more information about error (content depends on error code)
-  unsigned short argument;
-  //Ticker time that the error happened
-  ticker time;
-}ERROR_DAT;
 
 #ifdef SD_CARD_OUTPUT
   //number of errors in a block
