@@ -364,7 +364,7 @@ void error_log_mem_replay(unsigned char *dest,unsigned short size,unsigned char 
                         //copy error
                         memcpy(_dest,&blk->saved_errors[i],sizeof(ERROR_DAT));
                         //increment count
-                        *num++;
+                        (*num)++;
                         size-=sizeof(ERROR_DAT);
                         //check if there is room for more errors
                         if(size<sizeof(ERROR_DAT)){
@@ -434,7 +434,7 @@ void error_log_mem_replay(unsigned char *dest,unsigned short size,unsigned char 
                     //copy error
                     memcpy(_dest,&errors.saved_errors[i],sizeof(ERROR_DAT));
                     //increment count
-                    *num++;
+                    (*num)++;
                     size-=sizeof(ERROR_DAT);
                     //check if there is room for more errors
                     if(size<sizeof(ERROR_DAT)){
