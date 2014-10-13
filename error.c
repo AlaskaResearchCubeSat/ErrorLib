@@ -250,22 +250,27 @@ void record_error(unsigned char level,unsigned short source,int err, unsigned sh
   }
 }
 
+//check error level and return appropriate string
+const char* ERR_lev_str(unsigned char level){
+  if(level<ERR_LEV_INFO){
+    return "Debug";
+  }else if(level<ERR_LEV_WARNING){
+    return "Info";
+  }else if(level<ERR_LEV_ERROR){
+    return "Warning";
+  }else if(level<ERR_LEV_CRITICAL){
+    return "Error";
+  }else{
+    return "Critical Error";
+  }
+}
+
 //print an error
 void print_error(unsigned char level,unsigned short source,int err, unsigned short argument,ticker time){
   char buf[150];
   const char *lev_str;
   //check error level and use appropriate string
-  if(level<ERR_LEV_INFO){
-    lev_str="Debug";
-  }else if(level<ERR_LEV_WARNING){
-    lev_str="Info";
-  }else if(level<ERR_LEV_ERROR){
-    lev_str="Warning";
-  }else if(level<ERR_LEV_CRITICAL){
-    lev_str="Error";
-  }else{
-    lev_str="Critical Error";
-  }
+  lev_str=ERR_lev_str(level);
   //print message
   printf("%10lu:%-14s (%3i) : %s\r\n",time,lev_str,level,(source<ERR_SRC_SUBSYSTEM?err_decode_arcbus:err_decode)(buf,source,err,argument));
 }
