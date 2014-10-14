@@ -362,7 +362,7 @@ void error_log_mem_replay(unsigned char *dest,unsigned short size,unsigned char 
                     //check error level
                     if(blk->saved_errors[i].level>=level){
                         //copy error
-                        memcpy(_dest,&blk->saved_errors[i],sizeof(ERROR_DAT));
+                        memcpy(_dest++,&blk->saved_errors[i],sizeof(ERROR_DAT));
                         //increment count
                         (*num)++;
                         size-=sizeof(ERROR_DAT);
@@ -432,7 +432,7 @@ void error_log_mem_replay(unsigned char *dest,unsigned short size,unsigned char 
                 //check error level
                 if(errors.saved_errors[i].level>=level){
                     //copy error
-                    memcpy(_dest,&errors.saved_errors[i],sizeof(ERROR_DAT));
+                    memcpy(_dest++,&errors.saved_errors[i],sizeof(ERROR_DAT));
                     //increment count
                     (*num)++;
                     size-=sizeof(ERROR_DAT);
