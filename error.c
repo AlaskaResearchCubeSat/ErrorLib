@@ -643,15 +643,15 @@ void print_spi_err(const unsigned char *dat,unsigned short len){
     char buf[150];
     const ERROR_DAT *data;
     //check if it is a SPI error data block
-    if(dat[1]!=SPI_ERROR_DAT){
+    if(dat[0]!=SPI_ERROR_DAT){
         //print error and return
         printf("Error : data is not SPI error block\r\n");
         return;
     }
     //get sender address name
-    name=I2C_addr_revlookup(dat[0],busAddrSym);
+    name=I2C_addr_revlookup(dat[1],busAddrSym);
     if(name!=NULL){
-        printf("Printing errors from %s (0x%02X)\r\n",name,dat[0]);
+        printf("Printing errors from %s (0x%02X)\r\n",name,dat[1]);
     }else{
         printf("Printing errors from address 0x%02X\r\n",i);
     }
