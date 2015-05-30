@@ -4,10 +4,12 @@
 #include "Error.h"
 #include <ARCbus.h>
 #include <commandLib.h>
+
 #ifdef SD_CARD_OUTPUT
   #include <crc.h>
   #include <SDlib.h>
 #endif
+
 
 #define SAVED_ERROR_MAGIC   0xA5
 //signature values for SD card storage
@@ -38,7 +40,8 @@ enum {BLOCK_NOT_FULL=0,BLOCK_FULL};
   //place to store the error data
   static ERROR_BLOCK errors;
   //SD card address to store data to
-  static SD_blolck_addr current_block;
+  //static SD_blolck_addr current_block;
+  static long current_block;
   //used to derermine if library is ready to store data to the SD card
   static running;
 #else
@@ -82,7 +85,7 @@ void error_init(void){
 }
   
 #ifdef SD_CARD_OUTPUT
-  static int write_error_block(SD_blolck_addr addr,ERROR_BLOCK *data){
+  static int write_error_block(SD_block_addr addr,ERROR_BLOCK *data){
     //compute CRC
     data->chk=crc16((unsigned char*)err_dest,sizeof(ERROR_BLOCK)-sizeof(data->chk));
     //write block
@@ -94,7 +97,7 @@ void error_init(void){
 void error_recording_start(void){
   #ifdef SD_CARD_OUTPUT
     int resp,found;
-    SD_blolck_addr addr,found_addr;
+    SD_block_addr addr,found_addr;
     ERROR_BLOCK *blk;
     unsigned char *buf;
     unsigned short number;
@@ -320,7 +323,7 @@ void error_log_mem_replay(unsigned char *dest,unsigned short size,unsigned char 
   unsigned short *num=(unsigned short*)dest;
   int i,skip;
   #ifdef SD_CARD_OUTPUT
-    SD_blolck_addr start=current_block,addr=start;
+    SD_block_addr start=current_block,addr=start;
     ERROR_BLOCK *blk;
     unsigned long number=errors.number;
     int resp,last;
@@ -455,7 +458,7 @@ void error_log_mem_replay(unsigned char *dest,unsigned short size,unsigned char 
 void error_log_replay(unsigned short num,unsigned char level){
   unsigned short ecount=0;
   #ifdef SD_CARD_OUTPUT
-    SD_blolck_addr start=current_block,addr=start;
+    SD_block_addr start=current_block,addr=start;
     ERROR_BLOCK *blk;
     unsigned long number=errors.number;
     unsigned char *buf;
