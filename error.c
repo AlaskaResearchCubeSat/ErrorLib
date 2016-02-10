@@ -10,6 +10,46 @@
   #include <SDlib.h>
 #endif
 
+#define NUM_HANDLERS        (4)
+
+typedef struct{
+  char min,max;
+  ERR_DECODE decode;
+  unsigned short flags;
+}ERR_DCODER;
+
+static int err_next_decode=0;
+
+static ERR_DCODER decode_tbl[NUM_HANDLERS];
+
+int err_register_handler(char min, char max,ERR_DECODE decode,unsigned short flags){
+  int i;
+  //check for available decode slot
+  if(err_next_decode>=NUM_HANDLERS){
+    return ERR_TABLE_FULL;
+  }
+  //check that min is greater than max
+  if(min>max){
+    return ERR_INVALID_RANGE;
+  }
+  //check for overlapping ranges
+  for(i=0;i<err_next_decode;i++){
+    //check for overlapping errors
+    if((decode_tbl[i].min<=max && decode_tbl[i].min>=min) ||
+       (decode_tbl[i].max<=max && decode_tbl[i].max>=min) ){
+      return ERR_OVERLAP;
+    }
+  }
+  //add handler to list
+  decode_tbl[err_next_decode].decode=decode;
+  decode_tbl[err_next_decode].min=min;
+  decode_tbl[err_next_decode].max=max;
+  decode_tbl[err_next_decode].flags=flags;
+  //increment index
+  err_next_decode++;
+  //success
+  return RET_SUCCESS;
+}
 
 #define SAVED_ERROR_MAGIC   0xA5
 //signature values for SD card storage
@@ -62,9 +102,6 @@ static ERROR_BLOCK *err_dest;
 int next_idx;
 //mutex for error storage
 static CTL_MUTEX_t saved_err_mutex;
-
-//arcbus function to decode errors
-char *err_decode_arcbus(char buf[150],unsigned short source,int err, unsigned short argument);
 
 //log level
 static char log_level=0;
@@ -269,6 +306,22 @@ const char* ERR_lev_str(unsigned char level){
   }
 }
 
+const char *err_do_decode(char buf[150],unsigned short source,int err, unsigned short argument,unsigned short flags){
+  int i;
+  //check for matching handler
+  for(i=0;i<err_next_decode;i++){
+    //check if range and flags are a match
+    if(((!flags) || (decode_tbl[i].flags&flags)) && (decode_tbl[i].min<=source && decode_tbl[i].max>=source)){
+      //call error handler
+      return decode_tbl[i].decode(buf,source,err,argument);
+    }
+  }
+  //source unknown, return string with error numbers
+  sprintf(buf,"Unknown Source : source = %u, error = %u, argument = %u",source,err,argument);
+  //return buffer
+  return buf;
+}
+
 //print an error
 void print_error(unsigned char level,unsigned short source,int err, unsigned short argument,ticker time){
   char buf[150];
@@ -276,7 +329,7 @@ void print_error(unsigned char level,unsigned short source,int err, unsigned sho
   //check error level and use appropriate string
   lev_str=ERR_lev_str(level);
   //print message
-  printf("%10lu:%-14s (%3i) : %s\r\n",time,lev_str,level,(source<ERR_SRC_SUBSYSTEM?err_decode_arcbus:err_decode)(buf,source,err,argument));
+  printf("%10lu:%-14s (%3i) : %s\r\n",time,lev_str,level,err_do_decode(buf,source,err,argument,0));
 }
 
 //report error function : record an error if it's level is greater then the log level
@@ -665,7 +718,7 @@ void print_spi_err(const unsigned char *dat,unsigned short len){
             continue;
         }
         //print message
-        printf("%10lu:%-14s (%3i) : %s\r\n",data[i].time,ERR_lev_str(data[i].level),data[i].level,err_decode_arcbus(buf,data[i].source,data[i].err,data[i].argument));
+        printf("%10lu:%-14s (%3i) : %s\r\n",data[i].time,ERR_lev_str(data[i].level),data[i].level,err_do_decode(buf,data[i].source,data[i].err,data[i].argument,ERR_FLAGS_LIB));
     }
 }
 
