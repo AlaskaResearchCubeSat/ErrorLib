@@ -2,9 +2,6 @@
 #define __ERROR_H
 #include <stdio.h>
 #include <ARCbus.h>
-
-//System Error sources, Any source greater then ERR_SRC_SUBSYSTEM is available for subsystem use
-enum{ERR_SRC_ARCBUS=0,ERR_SRC_SUBSYSTEM=50};
 #include <MSP430.h>
   
 //Address range for ERROR data on the SD card
